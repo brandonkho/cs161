@@ -1,5 +1,8 @@
 For q1, the vulnerability was that char door[8] could be overflowed since it only holds 8 characters and there is nothing preventing us from adding more in gets(). This means we can add characters to overwrite the return address and run our shellcode.
 
+(gdb) print &door
+$1 = (char (*)[8]) 0xbffffc18
+
 
 Breakpoint 1, deja_vu () at dejavu.c:7
 7         gets(door);

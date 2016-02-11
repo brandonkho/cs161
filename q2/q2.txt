@@ -1,3 +1,6 @@
+(gdb) print &msg
+$1 = (char (*)[128]) 0xbffffb68
+
 Breakpoint 1, main (argc=2, argv=0xbffffcb4) at agent-smith.c:23
 23        if (argc != 2)
 (gdb) step
