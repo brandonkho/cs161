@@ -1,4 +1,4 @@
-The code agent-brown.c has a buffer of size 64 but the for loop will iterate 65 times and write into the buffer. We can exploit the fact that an extra byte is written to iverwrite the ebp address and cause it to jump to the beginning of buf. We place the address of the egg variable inside buf so our shellcode will be run. We also pad the buffer with 60 characters so we can go past the buffer and overwrite the ebp.
+The code agent-brown.c has a buffer of size 64 but the for loop will iterate 65 times and write into the buffer. We can exploit the fact that an extra byte is written to iverwrite the ebp address and cause it to jump to the beginning of buf. We place the address of the egg variable (which we find by using x/1000x *((char **)environ)) inside buf so our shellcode will be run. We also pad the buffer with 60 characters so we can go past the buffer and overwrite the ebp. We also xor the return address because the C code will xor anything put into the buffer.
 
 Breakpoint 1, invoke (
     in=0xbffffd4f "\272\337\337\237", 'A' <repeats 60 times>, "\024")
