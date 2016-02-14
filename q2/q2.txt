@@ -1,4 +1,4 @@
-This is similar to the last problem except the code has a check to only read in 127 bytes. The vulnerability is that a signed int is used. So we can use negative number (like 0xFF) to get past the check. Then we can just do something similar to part 1 where we find how many bytes to put in the buffer so we can overwrite the eip. This is 148 (0xbffffbfc - 0xbffffb68) bytes.
+This is similar to the last problem except the code has a check to only read in 127 bytes. The vulnerability is that a signed int is used. So we can use negative number (like 0xFF) to get past the check. Putting 0xFF also means that the code will read in 255 bytes, which means we can overflow the buffer. Then we can just do something similar to part 1 where we find how many bytes to put in the buffer so we can overwrite the eip. This is 148 (0xbffffbfc - 0xbffffb68) bytes.
 
 (gdb) print &msg
 $1 = (char (*)[128]) 0xbffffb68
