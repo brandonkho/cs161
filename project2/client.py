@@ -28,7 +28,8 @@ class Client(BaseClient):
         super().__init__(storage_server, public_key_server, crypto_object,
                          username)
 
-
+        self.random_bytes = self.crypto.get_random_bytes(16)
+        self.random_bytes2 = self.crypto.get_random_bytes(16)
 
     def resolve(self, uid):
         while True:
@@ -49,9 +50,17 @@ class Client(BaseClient):
     def upload(self, name, value):
         # Replace with your implementation
         uid = self.resolve(path_join(self.username, name))
+        mac = self.crypto.message_authentication_code(uid, self.random_bytes, 'SHA')
 
-        self.storage_server.put(uid, "[DATA] " + value)
 
+        mac_value = self.crypto.message_authentication_code(value, self.random_bytes, 'SHA')
+
+
+        uid_encrypt = self.crypto.symmetric_encrypt(uid, self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+        value_encrypt = self.crypto.symmetric_encrypt(value, self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+        #self.storage_server.put(uid, "[DATA] " + value)
+        self.storage_server.put(uid_encrypt, ("[DATA] " + value_encrypt, mac_value))
+        
 
         #raise NotImplementedError
 
@@ -59,10 +68,22 @@ class Client(BaseClient):
         # Replace with your implementation
         uid = self.resolve(path_join(self.username, name))
 
-        resp = self.storage_server.get(uid)
-        if resp is None:
+
+        uid_encrypt = self.crypto.symmetric_encrypt(uid, self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+
+
+        mac_value = self.crypto.message_authentication_code(value, self.random_bytes, 'SHA')
+
+        #resp = self.storage_server.get(uid)
+        resp = self.storage_server.get(uid_encrypt)
+
+        if resp is None: #rolback
             return None
-        return resp[7:]
+        if resp[1] != mac_value:
+            raise IntegrityError()
+        value_decrypt = self.crypto.symmetric_decrypt(resp[0][7:], self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+        #return resp[7:]
+        return value_decrypt
         
         #raise NotImplementedError
 
