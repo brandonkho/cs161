@@ -83,14 +83,14 @@ class Client(BaseClient):
 
         dict_key = self.crypto.get_random_bytes(16)
 
-        iv2 = self.crypto.get_random_bytes(16) #IV for encrypting the dictinary
+        dictionary_iv = self.crypto.get_random_bytes(16) #IV for encrypting the dictinary
 
         string_dict = util.to_json_string(self.dictionary)
-        dictionary_encrypt = self.crypto.symmetric_encrypt(string_dict, dict_key, 'AES', 'CBC', iv2)
+        dictionary_encrypt = self.crypto.symmetric_encrypt(string_dict, dict_key, 'AES', 'CBC', dictionary_iv)
         dictionary_encrypt_sign = self.crypto.asymmetric_sign(dictionary_encrypt, self.private_key)
         
 
-        dict_list = [iv2, dictionary_encrypt, dictionary_encrypt_sign]
+        dict_list = [dictionary_iv, dictionary_encrypt, dictionary_encrypt_sign]
         self.storage_server.put("dict", util.to_json_string(dict_list))
         self.storage_server.put("dict_key", self.crypto.asymmetric_encrypt(dict_key,self.private_key))
 
@@ -111,7 +111,7 @@ class Client(BaseClient):
         signed_name_and_value = self.crypto.asymmetric_sign(value_encrypt_sign, name_encrypt_sign, self.private_key)
 
         name_list = [iv_name, name_encrypt, name_encrypt_sign]
-        self.storage_server.put(util.to_json_string(name_list), util.to_json_string(signed_name_and_value, value_encrypt_sign, name_encrypt_sign))
+        self.storage_server.put(util.to_json_string(name_list), util.to_json_string(signed_name_and_value, value_encrypt_sign, name_encrypt_sign, value_iv, name_iv))
 
 
 
@@ -164,14 +164,16 @@ class Client(BaseClient):
         key_that_encrypts_name = decrypted_dictionary[uid][0]
         key_thats_encrypts_value = decrypted_dictionary[uid][1]
 
-        encrypted_name = 
-        resp = self.storage_server.get()
+        encrypted_name = ******iv
 
-        if resp is None: #rolback
+        resp = self.storage_server.get(encrypted_name)
+        if resp is None: #if not in server
             return None
-        if resp[1] != mac_value:
-            raise IntegrityError()
-        value_decrypt = self.crypto.symmetric_decrypt(resp[0][7:], random_bytes2, 'AES', 'CTR', None, None, self.crypto.new_counter(16), None)
+        if resp not in decrypted_dictionary: #if not in dictionary... but shoudl be the same as checking for existence in server
+            return None
+
+
+        value_decrypt = self.crypto.symmetric_decrypt(decrypted_dictionary[uid], key_thats_encrypts_value, 'AES', 'CBC', iv******)
         #return resp[7:]
         return value_decrypt
 
