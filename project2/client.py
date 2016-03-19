@@ -27,7 +27,6 @@ class Client(BaseClient):
                  username):
         super().__init__(storage_server, public_key_server, crypto_object,
                          username)
-        self.dictionary = {}
         
 
     def resolve(self, uid):
@@ -75,45 +74,52 @@ class Client(BaseClient):
         random_key_for_value = self.crypto.get_random_bytes(16)
         #random_key_value = self.crypto.get_random_bytes(16)
         #iv_name = self.crypto.get_random_bytes(16) 
-        #name_encrypt = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
+        #encrypted_name = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
         
         #name_encrypt_sign = self.crypto.asymmetric_sign(uid, self.private_key)
 
-        self.dictionary[uid] = (random_key_for_name, random_key_for_value)
 
         dict_key = self.crypto.get_random_bytes(16)
+        self.storage_server.put("dict_key", self.crypto.asymmetric_encrypt(dict_key,self.private_key))
+        dictionary_iv = self.crypto.get_random_bytes(16) #IV for encrypting the dictionary
 
-        dictionary_iv = self.crypto.get_random_bytes(16) #IV for encrypting the dictinary
 
-        string_dict = util.to_json_string(self.dictionary)
+        
+        if self.storage_server.get("dict") is None:
+            dictionary = {}
+
+        else:
+            dictionary = self.crypto.symmetric_decrypt(util.to_json_string(self.storage_server.get("dict")), dict_key, 'AES', 'CBC', dictionary_iv)
+        
+
+        dictionary[uid] = (random_key_for_name, random_key_for_value)
+        string_dict = util.to_json_string(dictionary)
         dictionary_encrypt = self.crypto.symmetric_encrypt(string_dict, dict_key, 'AES', 'CBC', dictionary_iv)
         dictionary_encrypt_sign = self.crypto.asymmetric_sign(dictionary_encrypt, self.private_key)
-        
 
         dict_list = [dictionary_iv, dictionary_encrypt, dictionary_encrypt_sign]
         self.storage_server.put("dict", util.to_json_string(dict_list))
-        self.storage_server.put("dict_key", self.crypto.asymmetric_encrypt(dict_key,self.private_key))
+        
         
         
         value_iv = self.crypto.get_random_bytes(16)
         
-        value_encrypt = self.crypto.symmetric_encrypt(value, random_key_for_value, 'AES', 'CBC', value_iv)
-        #value_encrypt_sign = self.crypto.asymmetric_sign(value_encrypt, self.private_key)
+        encrypted_value = self.crypto.symmetric_encrypt(value, random_key_for_value, 'AES', 'CBC', value_iv)
+        #value_encrypt_sign = self.crypto.asymmetric_sign(encrypted_value, self.private_key)
 
 
 
-
-        name_encrypt = self.crypto.symmetric_encrypt(self.crypto.cryptographic_hash(uid, 'SHA256'), random_key_for_name, 'AES')
-        #name_encrypt = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
-        #name_encrypt_sign = self.crypto.asymmetric_sign(name_encrypt, self.private_key)
+        encrypted_name = self.crypto.symmetric_encrypt(self.crypto.cryptographic_hash(uid, 'SHA256'), random_key_for_name, 'AES')
+        #encrypted_name = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
+        #name_encrypt_sign = self.crypto.asymmetric_sign(encrypted_name, self.private_key)
 
 
         # signed_name_and_value_list = [value_encrypt_sign, name_encrypt_sign, self.private_key]
         signed_name_and_value = self.crypto.asymmetric_sign(encrypted_name + encrypted_value, self.private_key)
 
         value_list = [signed_name_and_value, value_iv]
-        #name_list = [iv_name, name_encrypt, name_encrypt_sign]
-        self.storage_server.put(name_encrypt, util.to_json_string(value_list))
+        #name_list = [iv_name, encrypted_name, name_encrypt_sign]
+        self.storage_server.put(encrypted_name, util.to_json_string(value_list))
 
 
 
@@ -167,7 +173,7 @@ class Client(BaseClient):
         resp = self.storage_server.get(encrypted_name)
         if resp is None: #if not in server
             return None
-        if resp not in decrypted_dictionary: #if not in dictionary... but shoudl be the same as checking for existence in server
+        if resp not in decrypted_dictionary: #if not in dictionary... but should be the same as checking for existence in server
             return None
 
         decrypted_value_list = util.from_json_string(self.storage_server.get(encrypted_name))
