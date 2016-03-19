@@ -98,20 +98,20 @@ class Client(BaseClient):
         value_iv = self.crypto.get_random_bytes(16)
         
         value_encrypt = self.crypto.symmetric_encrypt(value, random_key_for_value, 'AES', 'CBC', value_iv)
-        value_encrypt_sign = self.crypto.asymmetric_sign(value_encrypt, self.private_key)
+        #value_encrypt_sign = self.crypto.asymmetric_sign(value_encrypt, self.private_key)
 
 
 
 
         name_encrypt = self.crypto.symmetric_encrypt(self.crypto.cryptographic_hash(uid, 'SHA256'), random_key_for_name, 'AES')
         #name_encrypt = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
-        name_encrypt_sign = self.crypto.asymmetric_sign(name_encrypt, self.private_key)
+        #name_encrypt_sign = self.crypto.asymmetric_sign(name_encrypt, self.private_key)
 
 
         # signed_name_and_value_list = [value_encrypt_sign, name_encrypt_sign, self.private_key]
-        signed_name_and_value = self.crypto.asymmetric_sign(value_encrypt_sign+name_encrypt_sign, self.private_key)
+        signed_name_and_value = self.crypto.asymmetric_sign(encrypted_name + encrypted_value, self.private_key)
 
-        value_list = [signed_name_and_value, value_encrypt_sign, name_encrypt_sign, value_iv]
+        value_list = [signed_name_and_value, value_iv]
         #name_list = [iv_name, name_encrypt, name_encrypt_sign]
         self.storage_server.put(name_encrypt, util.to_json_string(value_list))
 
@@ -154,15 +154,15 @@ class Client(BaseClient):
         iv = dict_list[0]
         encrypted_dictionary = dict_list[1]
         dictionary_signature = dict_list[2]
-        if not self.crypto.asymmetric_verify(encrypted_dictionary, dictionary_signature, self.private_key.public_key()):
+        if not self.crypto.asymmetric_verify(encrypted_dictionary, dictionary_signature, self.private_key.publickey()):
             raise IntegrityError()
 
-        decrypted_dictionary = self.crypto.symmetric_decrypt(encrypted_dictionary, decrypted_dict_key, 'AES', 'CBC', iv)
+        decrypted_dictionary = util.from_json_string(self.crypto.symmetric_decrypt(encrypted_dictionary, decrypted_dict_key, 'AES', 'CBC', iv))
 
         key_that_encrypts_name = decrypted_dictionary[uid][0]
         key_thats_encrypts_value = decrypted_dictionary[uid][1]
 
-        encrypted_name = self.crypto.symmetric_encrypt(self.crypto.cryptogradphic_hash(uid, 'SHA256'), key_that_encrypts_name, 'AES')
+        encrypted_name = self.crypto.symmetric_encrypt(self.crypto.cryptographic_hash(uid, 'SHA256'), key_that_encrypts_name, 'AES')
 
         resp = self.storage_server.get(encrypted_name)
         if resp is None: #if not in server
@@ -172,11 +172,11 @@ class Client(BaseClient):
 
         decrypted_value_list = util.from_json_string(self.storage_server.get(encrypted_name))
 
-        if not self.crypto.asymmetric_verify(self.storage_server.get(encrypted_name), decrypted_value_list[0], self.private_key.public_key()):
+        if not self.crypto.asymmetric_verify(self.storage_server.get(encrypted_name), decrypted_value_list[0], self.private_key.publickey()):
            raise IntegrityError()
 
 
-        value_decrypt = self.crypto.symmetric_decrypt(decrypted_dictionary[uid], key_thats_encrypts_value, 'AES', 'CBC', decrypted_value_list[3])
+        value_decrypt = self.crypto.symmetric_decrypt(decrypted_dictionary[uid], key_thats_encrypts_value, 'AES', 'CBC', decrypted_value_list[1])
         
         return value_decrypt
 
