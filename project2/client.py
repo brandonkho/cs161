@@ -11,7 +11,7 @@ included functionality tests.
 
 from base_client import BaseClient, IntegrityError
 from crypto import CryptoError
-
+import util
 
 def path_join(*strings):
     """Joins a list of strings putting a "/" between each.
@@ -27,9 +27,8 @@ class Client(BaseClient):
                  username):
         super().__init__(storage_server, public_key_server, crypto_object,
                          username)
-
-        self.random_bytes = self.crypto.get_random_bytes(16)
-        self.random_bytes2 = self.crypto.get_random_bytes(16)
+        self.dictionary = {}
+        
 
     def resolve(self, uid):
         while True:
@@ -42,37 +41,98 @@ class Client(BaseClient):
                 raise IntegrityError()
 
 
-
-
-
-
-
     def upload(self, name, value):
         # Replace with your implementation
+        '''
+        dictionary = {}
+
+        self.storage_server.put(self.username, (util.to_json_string(self.crypto.get_random_bytes(16)), util.to_json_string(self.crypto.get_random_bytes(16))))
+
+        random_bytes = self.storage_server.get(self.username)[0] #mac key
+        random_bytes2 = self.storage_server.get(self.username)[1] #symmetric key
+
         uid = self.resolve(path_join(self.username, name))
-        mac = self.crypto.message_authentication_code(uid, self.random_bytes, 'SHA')
+        mac = self.crypto.message_authentication_code(uid, random_bytes, 'SHA')
 
 
-        mac_value = self.crypto.message_authentication_code(value, self.random_bytes, 'SHA')
+        mac_value = self.crypto.message_authentication_code(value, random_bytes, 'SHA')
 
 
-        uid_encrypt = self.crypto.symmetric_encrypt(uid, self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
-        value_encrypt = self.crypto.symmetric_encrypt(value, self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+        uid_encrypt = self.crypto.symmetric_encrypt(uid, random_bytes2, 'AES', 'CTR', None, None, self.crypto.new_counter(16), None)
+        value_encrypt = self.crypto.symmetric_encrypt(value, random_bytes2, 'AES', 'CTR', None, None, self.crypto.new_counter(16), None)
         #self.storage_server.put(uid, "[DATA] " + value)
+
+        value_encrypt_asym = self.crypto.asymmetric_encrypt(value, self.private_key)
+        signature = asymmetric_sign(value_encrypt_asym, self.private_key)
+
         self.storage_server.put(uid_encrypt, ("[DATA] " + value_encrypt, mac_value))
         
 
         #raise NotImplementedError
+        '''
+        uid = self.resolve(path_join(self.username, name))
+        random_key_for_name = self.crypto.get_random_bytes(16)
+        random_key_for_value = self.crypto.get_random_bytes(16)
+        #random_key_value = self.crypto.get_random_bytes(16)
+        iv_name = self.crypto.get_random_bytes(16) 
+        #name_encrypt = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
+        
+        #name_encrypt_sign = self.crypto.asymmetric_sign(uid, self.private_key)
+
+        self.dictionary[uid] = (random_key_for_name, random_key_for_value)
+
+        dict_key = self.crypto.get_random_bytes(16)
+
+        iv2 = self.crypto.get_random_bytes(16) #IV for encrypting the dictinary
+
+        string_dict = util.to_json_string(self.dictionary)
+        dictionary_encrypt = self.crypto.symmetric_encrypt(string_dict, dict_key, 'AES', 'CBC', iv2)
+        dictionary_encrypt_sign = self.crypto.asymmetric_sign(dictionary_encrypt, self.private_key)
+        
+
+        dict_list = [iv2, dictionary_encrypt, dictionary_encrypt_sign]
+        self.storage_server.put("dict", util.to_json_string(dict_list))
+        self.storage_server.put("dict_key", self.crypto.asymmetric_encrypt(dict_key,self.private_key))
+
+        #dictionary_encrypt_sign = self.crypto.asymmetric_sign(dictionary_encrypt, self.private_key)
+        
+        
+        value_iv = self.crypto.get_random_bytes(16)
+        
+        value_encrypt = self.crypto.symmetric_encrypt(value, random_key_for_value, 'AES', 'CBC', value_iv)
+        value_encrypt_sign = self.crypto.asymmetric_sign(value_encrypt, self.private_key)
+
+        #name_encrypt_sign = self.crypto.asymmetric_sign(name_encrypt, self.private_key)
+        name_encrypt = self.crypto.symmetric_encrypt(uid, random_key_for_name, 'AES', 'CBC', iv_name)
+        name_encrypt_sign = self.crypto.asymmetric_sign(name_encrypt, self.private_key)
+
+
+        # signed_name_and_value_list = [value_encrypt_sign, name_encrypt_sign, self.private_key]
+        signed_name_and_value = self.crypto.asymmetric_sign(value_encrypt_sign, name_encrypt_sign, self.private_key)
+
+        name_list = [iv_name, name_encrypt, name_encrypt_sign]
+        self.storage_server.put(util.to_json_string(name_list), util.to_json_string(signed_name_and_value, value_encrypt_sign, name_encrypt_sign))
+
+
+
+
+
+
+
 
     def download(self, name):
         # Replace with your implementation
+        '''
+        random_bytes = self.storage_server.get(self.username)[0] #mac key
+        random_bytes2 = self.storage_server.get(self.username)[1] #symmetric key
+
         uid = self.resolve(path_join(self.username, name))
 
 
-        uid_encrypt = self.crypto.symmetric_encrypt(uid, self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+        uid_encrypt = self.crypto.symmetric_encrypt(uid, random_bytes2, 'AES', 'CTR', None, None, self.crypto.new_counter(16), None)
 
 
-        mac_value = self.crypto.message_authentication_code(value, self.random_bytes, 'SHA')
+        mac_value = self.crypto.message_authentication_code(value, random_bytes, 'SHA')
 
         #resp = self.storage_server.get(uid)
         resp = self.storage_server.get(uid_encrypt)
@@ -81,11 +141,43 @@ class Client(BaseClient):
             return None
         if resp[1] != mac_value:
             raise IntegrityError()
-        value_decrypt = self.crypto.symmetric_decrypt(resp[0][7:], self.random_bytes2, 'AES', 'CTR', None, None, self.crypto.Crypto.new_counter(16), None)
+        value_decrypt = self.crypto.symmetric_decrypt(resp[0][7:], random_bytes2, 'AES', 'CTR', None, None, self.crypto.new_counter(16), None)
         #return resp[7:]
         return value_decrypt
         
         #raise NotImplementedError
+        '''
+        uid = self.resolve(path_join(self.username, name))
+
+        dict_key = self.storage_server.get("dict_key")
+        decrypted_dict_key = self.crypto.asymmetric_decrypt(dict_key, self.private_key)
+        dictionary = self.storage_server.get("dict")
+        dict_list = util.from_json_string(dictionary)
+        iv = dict_list[0]
+        encrypted_dictionary = dict_list[1]
+        dictionary_signature = dict_list[2]
+        if not self.crypto.asymmetric_verify(encrypted_dictionary, dictionary_signature, self.private_key.public_key()):
+            raise IntegrityError()
+
+        decrypted_dictionary = self.crypto.symmetric_decrypt(encrypted_dictionary, decrypted_dict_key, 'AES', 'CBC', iv)
+
+        key_that_encrypts_name = decrypted_dictionary[uid][0]
+        key_thats_encrypts_value = decrypted_dictionary[uid][1]
+
+        encrypted_name = 
+        resp = self.storage_server.get()
+
+        if resp is None: #rolback
+            return None
+        if resp[1] != mac_value:
+            raise IntegrityError()
+        value_decrypt = self.crypto.symmetric_decrypt(resp[0][7:], random_bytes2, 'AES', 'CTR', None, None, self.crypto.new_counter(16), None)
+        #return resp[7:]
+        return value_decrypt
+
+
+
+
 
     def share(self, user, name):
         # Replace with your implementation (not needed for Part 1)
