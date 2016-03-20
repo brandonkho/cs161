@@ -34,6 +34,7 @@ def t02_SimpleGetPutNoState(C, pks, crypto, server):
     alice = C("alice")
     alice2 = C("alice")
     alice.upload("a", "b")
+    alice.upload("d", "e")
     return alice2.download("a") == "b"
 
 
