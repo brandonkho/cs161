@@ -131,7 +131,7 @@ class Client(BaseClient):
                 return None
             username_dictionary = path_join(self.username, "dictionary")
             random_key_for_dictionary = self.storage_server.get(username_keys)
-            print(random_key_for_dictionary)
+            #print(random_key_for_dictionary)
             if random_key_for_dictionary is None:
                 return None
             random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
