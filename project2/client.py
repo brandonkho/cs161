@@ -216,11 +216,34 @@ class Client(BaseClient):
         if random_keys is None:
             return None
         random_id = random_keys[0]
-        
+        random_id_key = random_keys[1]
+        random_id_mac = random_keys[2]
 
-        sharename = path_join(self.username, "sharewith", user, name)
-        self.storage_server.put(sharename, "[POINTER] " + random_id)
-        return sharename
+
+        e_key = self.crypto.asymmetric_encrypt(random_id_key, self.public_key_server.get_public_key(user))
+
+        if self.storage_server.get(random_id+"shared_file") == None:
+            shared_dict_as_string = util.to_json_string({self.username: None}) #SHADYYYYYYYYYYY; how do you initialize shizzzzzzzz
+            #don't need to encrypt shared_dict since it's public info
+            shared_dict_mac = self.crypto.message_authentication_code(shared_dict_as_string, random_id_key, 'SHA256')
+            shared_dict_values = [shared_dict_as_string, shared_dict_mac]
+            shared_dict_values_as_string = util.to_json_string(shared_dict_values)
+            self.storage_server.put(random_id+"shared_file", shared_dict_values_as_string)
+
+        shared_dict = self.storage_server.get(random_id+"shared_file")
+        calculated_mac = self.crypto.message_authentication_code(shared_dict, random_id_key, 'SHA256')
+        if calculated_mac != shared_dict[1]:
+            raise IntegrityError() #is this the right error
+        shared_dict = util.from_json_string(shared_dict)
+        shared_dict[self.username] = shared_dict[self.username].append({user: None})
+
+        msg_as_list = [random_id, e_key, random_id+"shared_file"]
+        msg_as_string = util.to_json_string(msg_as_list)
+
+        #they're not gonna test if you call share on something you don't own
+        #return None if a user tries to download a file that they don't have access to, not IntegrityError()
+        return msg_as_string
+
 
         #raise NotImplementedError
 
