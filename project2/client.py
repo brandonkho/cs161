@@ -30,7 +30,9 @@ class Client(BaseClient):
             if res is None or res.startswith("[DATA]"):
                 return uid
             elif res.startswith("[POINTER]"):
-                uid = res[10:]
+                #uid = res[10:]
+                temp = util.from_json_string(res[10:])
+                uid = temp[0]
             else:
                 raise IntegrityError()
 
@@ -75,7 +77,7 @@ class Client(BaseClient):
                     random_key_for_value_mac = dictionary.get(path_join(self.username, name))[2]  
 
             if uid.startswith("[SHARE]"):
-                shared_info = self.get_shared_random_shit(uid)
+                shared_info = self.storage_server.get(uid)[7:]
                 shared_info = util.from_json_string(shared_info)
                 random_id = shared_info[1]
                 random_key_for_value = shared_info[2]
@@ -106,10 +108,13 @@ class Client(BaseClient):
             uid = self.resolve(path_join(self.username, name))
 
             if uid.startswith("[SHARE]"):
-                if self.storage_server.get(uid) is None:
-                    pass
+                if self.storage_server.get(uid) is None: 
+                    return None
                 else:
-                    return self.get_shared_info(uid)
+                    dictionary = self.retrieve_dict()
+                    key = self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key)
+                    iv = dictionary[path_join(self.username,name)][3]
+                    return self.get_shared_info(uid, key, iv)
 
             username_keys = path_join(self.username, "dict_keys")
             if username_keys is None:
@@ -118,8 +123,9 @@ class Client(BaseClient):
             username_dictionary = path_join(self.username, "dictionary")
             random_key_for_dictionary = self.storage_server.get(username_keys)
 
-            if random_key_for_dictionary is None:
+            if random_key_for_dictionary is None: 
                 return None
+            
             random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
             dictionary_items_as_string = self.storage_server.get(username_dictionary)
 
@@ -163,6 +169,7 @@ class Client(BaseClient):
 
     def share(self, user, name):
         random_key_for_data = self.crypto.get_random_bytes(16)
+        random_iv_for_data = self.crypto.get_random_bytes(16)
         random_key_for_data_mac = self.crypto.get_random_bytes(16)
         random_key_for_data_encrypted = self.crypto.asymmetric_encrypt(random_key_for_data, self.pks.get_public_key(user))
 
@@ -171,12 +178,17 @@ class Client(BaseClient):
         sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
 
         if uid.startswith("[SHARE]"):
-            shared_info = self.get_shared_random_shit(uid)
+            shared_info = self.storage_server.get(uid)[7:]
+
             dictionary = self.retrieve_dict()
-            random_key_for_data_encrypted = self.crypto.asymmetric_encrypt(self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key()), self.pks.get_public_key(user))
-            random_key_for_data_mac = dictionary[path_join(self.username, name)][2]
+            key = self.crypto.asymmetric_encrypt(self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key), self.pks.get_public_key(user))
+            mac_key = dictionary[path_join(self.username,name)][2]
+            iv = dictionary[path_join(self.username,name)][3]
+            # dictionary = self.retrieve_dict()
+            # random_key_for_data_encrypted = self.crypto.asymmetric_encrypt(self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key()), self.pks.get_public_key(user))
+            # random_key_for_data_mac = dictionary[path_join(self.username, name)][2]
             self.storage_server.put(sharename, "[POINTER] " + path_join(self.username, name))
-            message_as_list = [sharename, random_key_for_data_encrypted, random_key_for_data_mac]
+            message_as_list = [sharename, key, mac_key, iv]
             message_as_string = util.to_json_string(message_as_list)
             return message_as_string
 
@@ -192,31 +204,83 @@ class Client(BaseClient):
         random_key_for_value_mac = random_keys[2]
 
 
-
-
         data = [sharename, random_id, random_key_for_value, random_key_for_value_mac]
         data_as_string = util.to_json_string(data)
-        self.storage_server.put(sharename, "[DATA] " + data_as_string)
 
-        message_as_list = [sharename, random_key_for_data_encrypted, random_key_for_data_mac]
+
+        data_as_string_encrypted = self.crypto.symmetric_encrypt(data_as_string, random_key_for_data, 'AES', 'CBC', random_iv_for_data)
+        self.storage_server.put(sharename, "[DATA] " + data_as_string_encrypted)
+
+        message_as_list = [sharename, random_key_for_data_encrypted, random_key_for_data_mac, random_iv_for_data] #shouldn't we also send the mac?
         message_as_string = util.to_json_string(message_as_list)
         return message_as_string
 
 
     def receive_share(self, from_username, newname, message):
-        print(message)        
-        my_id = path_join(self.username, newname)
-        message_as_list = util.from_json_string(message)
-        dictionary = self.retrieve_dict()
-        dictionary[newname] = message_as_list #resolve if it breaks
-        self.storage_server.put(self.username + "dictionary", util.to_json_string(dictionary))
-        self.storage_server.put(my_id, "[POINTER] " + message) #message[i] if we add more stuff to message???????
+        try:
+            dictionary  = None
+            d_key = None
+            uid = self.resolve(path_join(self.username, newname))
+            random_id = self.crypto.get_random_bytes(16)
+            random_key_for_value = self.crypto.get_random_bytes(16)
+            random_key_for_dictionary = self.crypto.get_random_bytes(16)
+            random_key_for_value_mac = self.crypto.get_random_bytes(16)
+            random_key_for_dict_mac = self.crypto.get_random_bytes(16)
+    
+            value_iv = self.crypto.get_random_bytes(16)
+
+            encrypted_random_key_for_dictionary = self.crypto.asymmetric_encrypt(random_key_for_dictionary, self.private_key.publickey())
+            username_keys = path_join(self.username, "dict_keys")
+            username_dictionary = path_join(self.username, "dictionary")
+
+            if self.storage_server.get(username_keys) is None:
+                self.storage_server.put(username_keys, encrypted_random_key_for_dictionary)
+            else:
+                e_random_key_for_dictionary = self.storage_server.get(username_keys)
+                random_key_for_dictionary = self.crypto.asymmetric_decrypt(e_random_key_for_dictionary, self.private_key)
+            if self.storage_server.get(username_dictionary) is None:
+                dictionary = {}
+            else:
+                d_key = self.storage_server.get(username_keys)
+                decrypted_d_key = self.crypto.asymmetric_decrypt(d_key, self.private_key)
+                dictionary_items_as_string = self.storage_server.get(username_dictionary)
+                dictionary_items_as_list = util.from_json_string(dictionary_items_as_string)
+                the_iv = dictionary_items_as_list[0]
+                dictionary = dictionary_items_as_list[1]
+                dictionary = self.crypto.symmetric_decrypt(dictionary, decrypted_d_key, 'AES', 'CBC', the_iv)
+                dictionary = util.from_json_string(dictionary)
+                
+
+            message_as_list = util.from_json_string(message)
+            dictionary[path_join(self.username, newname)] = message_as_list
+            self.storage_server.put(path_join(self.username, newname), "[POINTER] " + message) #message[i] if we add more stuff to message???????
+
+
+            dictionary_iv = self.crypto.get_random_bytes(16)
+            dictionary_as_string = util.to_json_string(dictionary)
+            dictionary_encrypt = self.crypto.symmetric_encrypt(dictionary_as_string, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
+            dictionary_encrypt_mac = self.crypto.message_authentication_code(dictionary_encrypt, random_key_for_dict_mac, 'SHA256')
+
+            list_of_items = [dictionary_iv, dictionary_encrypt, dictionary_encrypt_mac]
+            list_of_items_as_string = util.to_json_string(list_of_items)
+            self.storage_server.put(username_dictionary, list_of_items_as_string)
+        except:
+            raise IntegrityError()
+
+        # my_id = path_join(self.username, newname)
+
+        # message_as_list = util.from_json_string(message)
+        # dictionary = self.retrieve_dict()
+        # dictionary[path_join(self.username,newname)] = message_as_list #do we even need dictionary
+        # self.storage_server.put(path_join(self.username, "dictionary"), util.to_json_string(dictionary))
+
+        # self.storage_server.put(my_id, "[POINTER] " + message) #message[i] if we add more stuff to message???????
 
     def revoke(self, user, name):
         sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
         self.storage_server.delete(sharename)
 
-        #go through alice's list and change value of pointers
+        #go through alice's list and change value of pointers for everyone else she shared with
 
         #raise NotImplementedError
 
@@ -238,8 +302,9 @@ class Client(BaseClient):
         dictionary = util.from_json_string(dictionary)
         return dictionary
 
-    def get_shared_info(self, uid): #add stuff to decrypt the [DATA] [random_id, random_key] #get decrypted value of random_id
+    def get_shared_info(self, uid, key, iv): #get decrypted value of random_id
         shared_info = self.storage_server.get(uid)[7:]
+        shared_info = self.crypto.symmetric_decrypt(shared_info, key, 'AES', 'CBC', iv) 
         info_as_list = util.from_json_string(shared_info)
         random_id = info_as_list[1]
         random_key_for_value = info_as_list[2]
@@ -257,8 +322,3 @@ class Client(BaseClient):
             raise IntegrityError()
         decrypted_value = self.crypto.symmetric_decrypt(encrypted_value, random_key_for_value, 'AES', 'CBC', value_iv)
         return decrypted_value
-
-
-    def get_shared_random_shit(self, uid): #get [random_id, random_key]
-        shared_info = self.storage_server.get(uid)[7:]
-        return shared_info
