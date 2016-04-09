@@ -33,6 +33,8 @@ class Client(BaseClient):
                 #uid = res[10:]
                 temp = util.from_json_string(res[10:])
                 uid = temp[0]
+                print(uid+"LOOOOOOOOOOOL")
+                print(self.storage_server.get(uid))
             else:
                 raise IntegrityError()
 
@@ -106,6 +108,8 @@ class Client(BaseClient):
     def download(self, name):        
         try:
             uid = self.resolve(path_join(self.username, name))
+            print("uid: "+ uid)
+            print(self.storage_server.get(uid))
 
             if uid.startswith("[SHARE]"):
                 if self.storage_server.get(uid) is None: 
@@ -118,12 +122,14 @@ class Client(BaseClient):
 
             username_keys = path_join(self.username, "dict_keys")
             if username_keys is None:
+                print("\n\n\n\n\n\nit'shere1\n\n\n\n\n")
                 return None
 
             username_dictionary = path_join(self.username, "dictionary")
             random_key_for_dictionary = self.storage_server.get(username_keys)
 
             if random_key_for_dictionary is None: 
+                print("\n\n\n\n\n\nit'shere2\n\n\n\n\n")
                 return None
             
             random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
@@ -131,6 +137,7 @@ class Client(BaseClient):
 
 
             if dictionary_items_as_string is None:
+                print("\n\n\n\n\n\nit'shere3\n\n\n\n\n")
                 return None
             dictionary_items_as_list = util.from_json_string(dictionary_items_as_string)
             dictionary_iv = dictionary_items_as_list[0]
@@ -141,6 +148,7 @@ class Client(BaseClient):
             random_keys = actual_dictionary.get(path_join(self.username, name))
 
             if random_keys is None:
+                print("\n\n\n\n\n\nit'shere4\n\n\n\n\n")
                 return None
             random_id = random_keys[0]
             random_key_for_value = random_keys[1]
@@ -148,6 +156,7 @@ class Client(BaseClient):
 
             resp = self.storage_server.get(random_id)
             if resp is None:
+                print("\n\n\n\n\n\nit'shere5\n\n\n\n\n")
                 return None
 
             list_of_value_items_as_string = resp[7:]
@@ -178,8 +187,6 @@ class Client(BaseClient):
         sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
 
         if uid.startswith("[SHARE]"):
-            shared_info = self.storage_server.get(uid)[7:]
-
             dictionary = self.retrieve_dict()
             key = self.crypto.asymmetric_encrypt(self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key), self.pks.get_public_key(user))
             mac_key = dictionary[path_join(self.username,name)][2]
@@ -187,9 +194,11 @@ class Client(BaseClient):
             # dictionary = self.retrieve_dict()
             # random_key_for_data_encrypted = self.crypto.asymmetric_encrypt(self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key()), self.pks.get_public_key(user))
             # random_key_for_data_mac = dictionary[path_join(self.username, name)][2]
-            self.storage_server.put(sharename, "[POINTER] " + path_join(self.username, name))
+            
             message_as_list = [sharename, key, mac_key, iv]
             message_as_string = util.to_json_string(message_as_list)
+            self.storage_server.put("[SHARE] " + sharename, "[POINTER] " + path_join(self.username, name))
+
             return message_as_string
 
         dictionary = self.retrieve_dict()
