@@ -90,7 +90,17 @@ class Client(BaseClient):
                     random_key_for_value_mac = dictionary.get(path_join(self.username, name))[2]  
 
     
-            
+            ######
+            if uid.startswith("[SHARE]"):
+                shared_info = self.get_shared_random_shit(uid)
+                shared_info = util.from_json_string(shared_info)
+                random_id = shared_info[1]
+                random_key_for_value = shared_info[2]
+                random_key_for_value_mac = shared_info[3]
+                
+
+
+            ######
     
     
             dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac]
@@ -133,11 +143,14 @@ class Client(BaseClient):
         
         try:
             uid = self.resolve(path_join(self.username, name))
-
+            #print(uid)
 
 
             if uid.startswith("[SHARE]"):
-                return self.get_shared_info(uid)
+                if self.storage_server.get(uid) is None:
+                    pass
+                else:
+                    return self.get_shared_info(uid)
 
 
             username_keys = path_join(self.username, "dict_keys")
@@ -215,7 +228,8 @@ class Client(BaseClient):
 
         if uid.startswith("[SHARE]"):
             shared_info = self.get_shared_random_shit(uid)
-            self.storage_server.put(sharename, "[DATA] "+ shared_info)
+            #self.storage_server.put(sharename, "[DATA] "+ shared_info)
+            self.storage_server.put(sharename, "[POINTER] "+ path_join(self.username, name))
             return sharename
         
         dictionary = self.retrieve_dict()
@@ -287,7 +301,7 @@ class Client(BaseClient):
 
     def revoke(self, user, name):
         # Replace with your implementation (not needed for Part 1)
-        sharename = path_join(self.username, "sharewith", user, name)
+        sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
         self.storage_server.delete(sharename)
 
         #raise NotImplementedError
