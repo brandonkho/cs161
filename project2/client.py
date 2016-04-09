@@ -162,15 +162,23 @@ class Client(BaseClient):
 
 
     def share(self, user, name):
+        random_key_for_data = self.crypto.get_random_bytes(16)
+        random_key_for_data_mac = self.crypto.get_random_bytes(16)
+        random_key_for_data_encrypted = self.crypto.asymmetric_encrypt(random_key_for_data, self.pks.get_public_key(user))
+
         uid = self.resolve(path_join(self.username, name))
 
         sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
 
         if uid.startswith("[SHARE]"):
             shared_info = self.get_shared_random_shit(uid)
-            #encrypt the shared_info
+            dictionary = self.retrieve_dict()
+            random_key_for_data_encrypted = self.crypto.asymmetric_encrypt(self.crypto.asymmetric_decrypt(dictionary[path_join(self.username,name)][1], self.private_key()), self.pks.get_public_key(user))
+            random_key_for_data_mac = dictionary[path_join(self.username, name)][2]
             self.storage_server.put(sharename, "[POINTER] " + path_join(self.username, name))
-            return sharename #msg = [sharename]
+            message_as_list = [sharename, random_key_for_data_encrypted, random_key_for_data_mac]
+            message_as_string = util.to_json_string(message_as_list)
+            return message_as_string
 
         dictionary = self.retrieve_dict()
 
@@ -181,16 +189,28 @@ class Client(BaseClient):
 
         random_id = random_keys[0]
         random_key_for_value = random_keys[1]
-        random_key_for_value_mac = random_keys[2]     
-        message = [sharename, random_id, random_key_for_value, random_key_for_value_mac]
-        message_as_string = util.to_json_string(message)
-        self.storage_server.put(sharename, "[DATA] " + message_as_string)
-        return sharename
+        random_key_for_value_mac = random_keys[2]
 
 
-    def receive_share(self, from_username, newname, message):        
+
+
+        data = [sharename, random_id, random_key_for_value, random_key_for_value_mac]
+        data_as_string = util.to_json_string(data)
+        self.storage_server.put(sharename, "[DATA] " + data_as_string)
+
+        message_as_list = [sharename, random_key_for_data_encrypted, random_key_for_data_mac]
+        message_as_string = util.to_json_string(message_as_list)
+        return message_as_string
+
+
+    def receive_share(self, from_username, newname, message):
+        print(message)        
         my_id = path_join(self.username, newname)
-        self.storage_server.put(my_id, "[POINTER] " + message) #message[i] if we add more stuff to message
+        message_as_list = util.from_json_string(message)
+        dictionary = self.retrieve_dict()
+        dictionary[newname] = message_as_list #resolve if it breaks
+        self.storage_server.put(self.username + "dictionary", util.to_json_string(dictionary))
+        self.storage_server.put(my_id, "[POINTER] " + message) #message[i] if we add more stuff to message???????
 
     def revoke(self, user, name):
         sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
