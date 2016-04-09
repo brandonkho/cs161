@@ -80,8 +80,11 @@ class Client(BaseClient):
                 random_id = shared_info[1]
                 random_key_for_value = shared_info[2]
                 random_key_for_value_mac = shared_info[3]
+    
+    
+            dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac]
+    
 
-            dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac]   
             dictionary_iv = self.crypto.get_random_bytes(16)
             dictionary_as_string = util.to_json_string(dictionary)
             dictionary_encrypt = self.crypto.symmetric_encrypt(dictionary_as_string, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
@@ -168,7 +171,6 @@ class Client(BaseClient):
             #encrypt the shared_info
             self.storage_server.put(sharename, "[POINTER] " + path_join(self.username, name))
             return sharename #msg = [sharename]
-
 
         dictionary = self.retrieve_dict()
 
