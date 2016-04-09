@@ -83,8 +83,8 @@ class Client(BaseClient):
                     random_key_for_value_mac = dictionary.get(path_join(self.username, name))[2]  
 
             if uid.startswith("[SHARE]"):
-                shared_info = self.storage_server.get(uid)[7:]
-                
+                key = self.crypto.asymmetric_decrypt(dictionary[path_join(self.username, name)][1], self.private_key)
+                shared_info = self.crypto.symmetric_decrypt(self.storage_server.get(uid)[7:], key, 'AES', 'CBC', dictionary[path_join(self.username, name)][3])
                 shared_info = util.from_json_string(shared_info)
                 random_id = shared_info[1]
                 random_key_for_value = shared_info[2]
@@ -93,7 +93,6 @@ class Client(BaseClient):
     
             dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac]
     
-
             dictionary_iv = self.crypto.get_random_bytes(16)
             dictionary_as_string = util.to_json_string(dictionary)
             dictionary_encrypt = self.crypto.symmetric_encrypt(dictionary_as_string, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
