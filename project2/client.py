@@ -30,11 +30,15 @@ class Client(BaseClient):
             if res is None or res.startswith("[DATA]"):
                 return uid
             elif res.startswith("[POINTER]"):
-                #uid = res[10:]
-                temp = util.from_json_string(res[10:])
-                uid = temp[0]
-                print(uid+"LOOOOOOOOOOOL")
-                print(self.storage_server.get(uid))
+                if res[10] == '[':
+                    temp = util.from_json_string(res[10:])
+                    uid = temp[0]
+                else:
+                    uid = res[10:]
+                #temp = util.from_json_string(res[10:])
+                #uid = temp[0]
+                #print(uid+"LOOOOOOOOOOOL")
+                #print(self.storage_server.get(uid))
             else:
                 raise IntegrityError()
 
@@ -80,6 +84,7 @@ class Client(BaseClient):
 
             if uid.startswith("[SHARE]"):
                 shared_info = self.storage_server.get(uid)[7:]
+                
                 shared_info = util.from_json_string(shared_info)
                 random_id = shared_info[1]
                 random_key_for_value = shared_info[2]
@@ -108,8 +113,8 @@ class Client(BaseClient):
     def download(self, name):        
         try:
             uid = self.resolve(path_join(self.username, name))
-            print("uid: "+ uid)
-            print(self.storage_server.get(uid))
+            #print("uid: "+ uid)
+            #print(self.storage_server.get(uid))
 
             if uid.startswith("[SHARE]"):
                 if self.storage_server.get(uid) is None: 
@@ -197,7 +202,7 @@ class Client(BaseClient):
             
             message_as_list = [sharename, key, mac_key, iv]
             message_as_string = util.to_json_string(message_as_list)
-            self.storage_server.put("[SHARE] " + sharename, "[POINTER] " + path_join(self.username, name))
+            self.storage_server.put(sharename, "[POINTER] " + path_join(self.username, name))
 
             return message_as_string
 
