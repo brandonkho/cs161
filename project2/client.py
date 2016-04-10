@@ -113,34 +113,37 @@ class Client(BaseClient):
                 items_for_data_and_value = dictionary.get(path_join(self.username ,name))
                 data_key = items_for_data_and_value[3]
                 data_mac_key = items_for_data_and_value[4]
-                list_of_data_items_as_string = self.storage_server.get(uid)[7:]
-                list_of_data_items = util.from_json_string(list_of_data_items_as_string)
-                data_iv = list_of_data_items[0]
-                encrypted_data_as_string = list_of_data_items[1]
-                data_mac = list_of_data_items[2]
-                calculated_data_mac = self.crypto.message_authentication_code(encrypted_data_as_string, data_mac_key, 'SHA256')
-                if calculated_data_mac != data_mac:
-                    raise IntegrityError()
-                data = self.crypto.symmetric_decrypt(encrypted_data_as_string, data_key, 'AES', 'CBC', data_iv)
-                shared_info = util.from_json_string(data)
-                random_id = shared_info[0]
-                random_key_for_value = shared_info[1]
-                random_key_for_value_mac = shared_info[2]
-                dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac, data_key, data_mac_key]
-                dictionary_iv = self.crypto.get_random_bytes(16)
-                dictionary_as_string = util.to_json_string(dictionary)
-                dictionary_encrypt = self.crypto.symmetric_encrypt(dictionary_as_string, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
-                encrypted_value = self.crypto.symmetric_encrypt(value, random_key_for_value, 'AES', 'CBC', value_iv)
-                dictionary_encrypt_mac = self.crypto.message_authentication_code(dictionary_encrypt, random_key_for_dict_mac, 'SHA256')
-                name_and_value_encrypt_mac = self.crypto.message_authentication_code(random_id+encrypted_value, random_key_for_value_mac, 'SHA256')
-    
-                list_of_value_items = [value_iv, encrypted_value, name_and_value_encrypt_mac]
-                list_of_value_items_as_string = util.to_json_string(list_of_value_items)
-                list_of_items = [dictionary_iv, dictionary_encrypt, dictionary_encrypt_mac]
-                list_of_items_as_string = util.to_json_string(list_of_items)
-                self.storage_server.put(username_dictionary, list_of_items_as_string)
-                self.storage_server.put(random_id, "[DATA] " + list_of_value_items_as_string)
-                return
+                if self.storage_server.get(uid) is not None:
+                    list_of_data_items_as_string = self.storage_server.get(uid)[7:]
+                    list_of_data_items = util.from_json_string(list_of_data_items_as_string)
+                    data_iv = list_of_data_items[0]
+                    encrypted_data_as_string = list_of_data_items[1]
+                    data_mac = list_of_data_items[2]
+                    calculated_data_mac = self.crypto.message_authentication_code(encrypted_data_as_string, data_mac_key, 'SHA256')
+                    if calculated_data_mac != data_mac:
+                        raise IntegrityError()
+                    data = self.crypto.symmetric_decrypt(encrypted_data_as_string, data_key, 'AES', 'CBC', data_iv)
+                    shared_info = util.from_json_string(data)
+                    random_id = shared_info[0]
+                    random_key_for_value = shared_info[1]
+                    random_key_for_value_mac = shared_info[2]
+                    dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac, data_key, data_mac_key]
+                    dictionary_iv = self.crypto.get_random_bytes(16)
+                    dictionary_as_string = util.to_json_string(dictionary)
+                    dictionary_encrypt = self.crypto.symmetric_encrypt(dictionary_as_string, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
+                    encrypted_value = self.crypto.symmetric_encrypt(value, random_key_for_value, 'AES', 'CBC', value_iv)
+                    dictionary_encrypt_mac = self.crypto.message_authentication_code(dictionary_encrypt, random_key_for_dict_mac, 'SHA256')
+                    name_and_value_encrypt_mac = self.crypto.message_authentication_code(random_id+encrypted_value, random_key_for_value_mac, 'SHA256')
+        
+                    list_of_value_items = [value_iv, encrypted_value, name_and_value_encrypt_mac]
+                    list_of_value_items_as_string = util.to_json_string(list_of_value_items)
+                    list_of_items = [dictionary_iv, dictionary_encrypt, dictionary_encrypt_mac]
+                    list_of_items_as_string = util.to_json_string(list_of_items)
+                    self.storage_server.put(username_dictionary, list_of_items_as_string)
+                    self.storage_server.put(random_id, "[DATA] " + list_of_value_items_as_string)
+                    return
+                else:
+                    self.storage_server.delete(path_join(self.username, name))
             
             
             dictionary[path_join(self.username, name)] = [random_id, random_key_for_value, random_key_for_value_mac, data_key, data_mac_key]
@@ -189,66 +192,64 @@ class Client(BaseClient):
             uid = self.resolve(path_join(self.username, name))
 
 
-            try:
-                return self.get_latest_version(name)
-            except:
-                if uid.startswith("[SHARE]"):
-                    if self.storage_server.get(uid) is None:
-                        return None
-                    else:
-                        dictionary = self.retrieve_dict()
-                        items_for_data_and_value = dictionary.get(path_join(self.username, name))
-                        
-                        data_key = items_for_data_and_value[3]
-                        
-                        data_mac_key = items_for_data_and_value[4]
-                        return self.get_shared_info(uid, data_key, data_mac_key)
-
-                username_keys = path_join(self.username, "dict_keys")
-                if username_keys is None:
+            
+            if uid.startswith("[SHARE]"):
+                if self.storage_server.get(uid) is None:
                     return None
+                else:
+                    dictionary = self.retrieve_dict()
+                    items_for_data_and_value = dictionary.get(path_join(self.username, name))
+                    
+                    data_key = items_for_data_and_value[3]
+                    
+                    data_mac_key = items_for_data_and_value[4]
+                    return self.get_shared_info(uid, data_key, data_mac_key)
 
-                username_dictionary = path_join(self.username, "dictionary")
-                random_key_for_dictionary = self.storage_server.get(username_keys)
+            username_keys = path_join(self.username, "dict_keys")
+            if username_keys is None:
+                return None
 
-                if random_key_for_dictionary is None:
-                    return None
-                random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
-                dictionary_items_as_string = self.storage_server.get(username_dictionary)
+            username_dictionary = path_join(self.username, "dictionary")
+            random_key_for_dictionary = self.storage_server.get(username_keys)
+
+            if random_key_for_dictionary is None:
+                return None
+            random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
+            dictionary_items_as_string = self.storage_server.get(username_dictionary)
 
 
-                if dictionary_items_as_string is None:
-                    return None
-                dictionary_items_as_list = util.from_json_string(dictionary_items_as_string)
-                dictionary_iv = dictionary_items_as_list[0]
-                encrypted_dictionary = dictionary_items_as_list[1]
-                encrypted_dictionary_mac = dictionary_items_as_list[2]
-                decrypted_dictionary = self.crypto.symmetric_decrypt(encrypted_dictionary, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
-                actual_dictionary = util.from_json_string(decrypted_dictionary)
-                random_keys = actual_dictionary.get(path_join(self.username, name))
+            if dictionary_items_as_string is None:
+                return None
+            dictionary_items_as_list = util.from_json_string(dictionary_items_as_string)
+            dictionary_iv = dictionary_items_as_list[0]
+            encrypted_dictionary = dictionary_items_as_list[1]
+            encrypted_dictionary_mac = dictionary_items_as_list[2]
+            decrypted_dictionary = self.crypto.symmetric_decrypt(encrypted_dictionary, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
+            actual_dictionary = util.from_json_string(decrypted_dictionary)
+            random_keys = actual_dictionary.get(path_join(self.username, name))
 
-                if random_keys is None:
-                    return None
-                random_id = random_keys[0]
-                random_key_for_value = random_keys[1]
-                random_key_for_value_mac = random_keys[2]
+            if random_keys is None:
+                return None
+            random_id = random_keys[0]
+            random_key_for_value = random_keys[1]
+            random_key_for_value_mac = random_keys[2]
 
-                resp = self.storage_server.get(random_id)
-                if resp is None:
-                    return None
+            resp = self.storage_server.get(random_id)
+            if resp is None:
+                return None
 
-                list_of_value_items_as_string = resp[7:]
-                list_of_value_items = util.from_json_string(list_of_value_items_as_string)
-                value_iv = list_of_value_items[0]
-                encrypted_value = list_of_value_items[1]
-                name_and_value_encrypt_mac = list_of_value_items[2]
-                
-                calculated_mac = self.crypto.message_authentication_code(random_id+encrypted_value, random_key_for_value_mac, 'SHA256')
-                if calculated_mac != name_and_value_encrypt_mac:
-                    raise IntegrityError()
-                
-                decrypted_value = self.crypto.symmetric_decrypt(encrypted_value, random_key_for_value, 'AES', 'CBC', value_iv)
-                return decrypted_value
+            list_of_value_items_as_string = resp[7:]
+            list_of_value_items = util.from_json_string(list_of_value_items_as_string)
+            value_iv = list_of_value_items[0]
+            encrypted_value = list_of_value_items[1]
+            name_and_value_encrypt_mac = list_of_value_items[2]
+            
+            calculated_mac = self.crypto.message_authentication_code(random_id+encrypted_value, random_key_for_value_mac, 'SHA256')
+            if calculated_mac != name_and_value_encrypt_mac:
+                raise IntegrityError()
+            
+            decrypted_value = self.crypto.symmetric_decrypt(encrypted_value, random_key_for_value, 'AES', 'CBC', value_iv)
+            return decrypted_value
             
         except:
             raise IntegrityError() 
