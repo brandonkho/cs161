@@ -79,6 +79,34 @@ class Client(BaseClient):
                     data_key = dictionary.get(path_join(self.username, name))[3]
                     data_mac_key = dictionary.get(path_join(self.username, name))[4]
 
+
+
+
+
+
+            #need to download if you lose the shiz
+            #efficient update
+            if name in dictionary: #if this file already exists
+            #if cached version != value
+            #deals with the case when you try to upload something that is equal to the cached version since compute_edits = None???
+                updated_version = self.get_latest_version(name)
+                newest_update = util.compute_edits(updated_version, value)
+
+                newest_update_as_string = util.to_json_string(newest_update)
+                self.storage_server.put(path_join(name + "v" + str(self.find_version_number(name) + 1)), newest_update_as_string) #you can trust your own client, don't need to encrypt
+                self.storage_server.put(random_id + "v", str(self.find_version_number(name) + 1))
+
+                # if name is shared with other people:
+                #     for name in alices list: 
+                #     self.storage_server.put(path_join(other_person, "v" + str(find_version_number(name) + 1)), update)
+
+
+
+
+
+
+
+
             if uid.startswith("[SHARE]"):
                 items_for_data_and_value = dictionary.get(path_join(self.username ,name))
                 data_key = items_for_data_and_value[3]
@@ -129,6 +157,22 @@ class Client(BaseClient):
             list_of_items_as_string = util.to_json_string(list_of_items)
             self.storage_server.put(username_dictionary, list_of_items_as_string)
             self.storage_server.put(random_id, "[DATA] " + list_of_value_items_as_string)
+
+
+
+
+
+
+
+            #efficient update ; first upload
+            self.storage_server.put(random_id + "v", "1") #file that stores what version we're on
+            self.storage_server.put(path_join(self.username, random_id + "v" + "1"), value)
+
+
+
+
+
+
         except:
             raise IntegrityError()
 
@@ -136,64 +180,68 @@ class Client(BaseClient):
         try:
             uid = self.resolve(path_join(self.username, name))
 
-            if uid.startswith("[SHARE]"):
-                if self.storage_server.get(uid) is None:
+
+            try:
+                return self.get_latest_version(name)
+            except:
+                if uid.startswith("[SHARE]"):
+                    if self.storage_server.get(uid) is None:
+                        return None
+                    else:
+                        dictionary = self.retrieve_dict()
+                        items_for_data_and_value = dictionary.get(path_join(self.username, name))
+                        
+                        data_key = items_for_data_and_value[3]
+                        
+                        data_mac_key = items_for_data_and_value[4]
+                        return self.get_shared_info(uid, data_key, data_mac_key)
+
+                username_keys = path_join(self.username, "dict_keys")
+                if username_keys is None:
                     return None
-                else:
-                    dictionary = self.retrieve_dict()
-                    items_for_data_and_value = dictionary.get(path_join(self.username, name))
-                    
-                    data_key = items_for_data_and_value[3]
-                    
-                    data_mac_key = items_for_data_and_value[4]
-                    return self.get_shared_info(uid, data_key, data_mac_key)
 
-            username_keys = path_join(self.username, "dict_keys")
-            if username_keys is None:
-                return None
+                username_dictionary = path_join(self.username, "dictionary")
+                random_key_for_dictionary = self.storage_server.get(username_keys)
 
-            username_dictionary = path_join(self.username, "dictionary")
-            random_key_for_dictionary = self.storage_server.get(username_keys)
-
-            if random_key_for_dictionary is None:
-                return None
-            random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
-            dictionary_items_as_string = self.storage_server.get(username_dictionary)
+                if random_key_for_dictionary is None:
+                    return None
+                random_key_for_dictionary = self.crypto.asymmetric_decrypt(random_key_for_dictionary, self.private_key)
+                dictionary_items_as_string = self.storage_server.get(username_dictionary)
 
 
-            if dictionary_items_as_string is None:
-                return None
-            dictionary_items_as_list = util.from_json_string(dictionary_items_as_string)
-            dictionary_iv = dictionary_items_as_list[0]
-            encrypted_dictionary = dictionary_items_as_list[1]
-            encrypted_dictionary_mac = dictionary_items_as_list[2]
-            decrypted_dictionary = self.crypto.symmetric_decrypt(encrypted_dictionary, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
-            actual_dictionary = util.from_json_string(decrypted_dictionary)
-            random_keys = actual_dictionary.get(path_join(self.username, name))
+                if dictionary_items_as_string is None:
+                    return None
+                dictionary_items_as_list = util.from_json_string(dictionary_items_as_string)
+                dictionary_iv = dictionary_items_as_list[0]
+                encrypted_dictionary = dictionary_items_as_list[1]
+                encrypted_dictionary_mac = dictionary_items_as_list[2]
+                decrypted_dictionary = self.crypto.symmetric_decrypt(encrypted_dictionary, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
+                actual_dictionary = util.from_json_string(decrypted_dictionary)
+                random_keys = actual_dictionary.get(path_join(self.username, name))
 
-            if random_keys is None:
-                return None
-            random_id = random_keys[0]
-            random_key_for_value = random_keys[1]
-            random_key_for_value_mac = random_keys[2]
+                if random_keys is None:
+                    return None
+                random_id = random_keys[0]
+                random_key_for_value = random_keys[1]
+                random_key_for_value_mac = random_keys[2]
 
-            resp = self.storage_server.get(random_id)
-            if resp is None:
-                return None
+                resp = self.storage_server.get(random_id)
+                if resp is None:
+                    return None
 
-            list_of_value_items_as_string = resp[7:]
-            list_of_value_items = util.from_json_string(list_of_value_items_as_string)
-            value_iv = list_of_value_items[0]
-            encrypted_value = list_of_value_items[1]
-            name_and_value_encrypt_mac = list_of_value_items[2]
+                list_of_value_items_as_string = resp[7:]
+                list_of_value_items = util.from_json_string(list_of_value_items_as_string)
+                value_iv = list_of_value_items[0]
+                encrypted_value = list_of_value_items[1]
+                name_and_value_encrypt_mac = list_of_value_items[2]
+                
+                calculated_mac = self.crypto.message_authentication_code(random_id+encrypted_value, random_key_for_value_mac, 'SHA256')
+                if calculated_mac != name_and_value_encrypt_mac:
+                    raise IntegrityError()
+                
+                decrypted_value = self.crypto.symmetric_decrypt(encrypted_value, random_key_for_value, 'AES', 'CBC', value_iv)
+                return decrypted_value
             
-            calculated_mac = self.crypto.message_authentication_code(random_id+encrypted_value, random_key_for_value_mac, 'SHA256')
-            if calculated_mac != name_and_value_encrypt_mac:
-                raise IntegrityError()
-            
-            decrypted_value = self.crypto.symmetric_decrypt(encrypted_value, random_key_for_value, 'AES', 'CBC', value_iv)
-            return decrypted_value
-        
         except:
             raise IntegrityError() 
 
@@ -303,6 +351,24 @@ class Client(BaseClient):
 
         dictionary[path_join(self.username, newname)] = [random_id, random_key_for_value, random_key_for_value_mac, data_key, data_mac_key]
 
+
+
+
+
+
+        #why do we not encrypt bob's newname for files...... fudge
+
+
+        #efficient updates stuff
+        #self.storage_server.put(path_join(self.username, newname + str(find_version_number(given name***))), given value***)
+
+
+
+
+
+
+
+
         dictionary_iv = self.crypto.get_random_bytes(16)
         dictionary_as_string = util.to_json_string(dictionary)
         dictionary_encrypt = self.crypto.symmetric_encrypt(dictionary_as_string, random_key_for_dictionary, 'AES', 'CBC', dictionary_iv)
@@ -314,6 +380,37 @@ class Client(BaseClient):
         my_id = path_join(self.username, newname)
 
         self.storage_server.put(my_id, "[POINTER] " + sharename) #message[i] if we add more stuff to message
+
+
+
+
+    def find_version_number(self, filename):
+        k = self.storage_server.get(filename + "v")
+
+        # print(k)
+        # print("\n\n\n\n\n\n\n")
+        return int(k)
+
+    def compute_the_edits(string, list_of_edits):
+        for edit in list_of_edits:
+            string = string[:edit[0]] + edit[1] + string[len(edit[1])+edit[0]:]
+        return string
+
+
+    def get_latest_version(self, name): #kinda latest version -1
+        updates = []
+        for i in range(2, self.find_version_number(name)+1): #get all updates in sequential order; start at 2 since 1 is the original file
+            filename = path_join(self.username, name + "v" + str(i))
+            item_as_list = util.from_json_string(self.storage_server.get(filename))
+            updates.append(self.storage_server.get(item_as_list))
+       
+        updated_version = self.storage_server.get(path_join(self.username, name + "v" + str(1))) #is this technically storing on the server? im getting confused...
+        
+        for x in updates:
+            updated_version = compute_the_edits(updated_version, x)
+             
+        return updated_version
+
 
     def revoke(self, user, name):
         sharename = path_join("[SHARE]", self.username, "sharewith", user, name)
