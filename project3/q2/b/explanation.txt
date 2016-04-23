@@ -1,0 +1,4 @@
+a) Procedure:
+
+
+b) Line 148 doesn't do what the comment above it says it will do. The comment says that the number of microseconds since time_in_sec will be added, but the "seed" value is just replaced with time_micro_sec >> 7. There is about 2^20 microseconds in a second, and right shifting that by 7 means that there's about 2^13 ~= 8192 values at the most (actually about 10^6/2^7 ~= 7812.5) possibilities for the seed. This means that there's a significantly smaller amount of entropy than was intended; if the code were to be fixed, then this key generation scheme would be secure since there would be about 32 bits of entropy (since there's about 2^31 seconds since epoc + 2^20 microseconds which is trivial). 

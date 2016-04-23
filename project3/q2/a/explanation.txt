@@ -1,0 +1,6 @@
+a) Procedure: I followed the directions in the spec to open Wireshark, add the private key in ~q2a/q2a_privkey.priv in the SSL protocol preferences, open the packet capture in ~/q2a/q2a.pcap, and then examined it. I found the secret in plaintext in the GET /secret.html part. The plaintext read, "The question 0 secret for cs161-ds,cs161-mt is 95e09dae510a391a".
+
+b) TLS_RSA_WITH_AES_256_GCM_SHA384 (found in the server hello message) is the cryptographic algorithm used for this TLS connection. TLS is the protocol, RSA is the algorithm used for the key exchange, and AES-256-GCM is the encryption algorithm for confidentiality, and SHA384 is the hash function that is used for integrity.
+
+c) We could have used Diffie-Hellman instead of RSA. Since Diffie-Hellman generates new key pairs for each session (+ all the ideas from Piazza post @1405), it would be impossible to decrypt even if the private key was found.
+

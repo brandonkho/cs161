@@ -1,0 +1,25 @@
+#!/bin/bash
+
+
+counter=0
+
+while [ $counter -lt 8000 ]; do
+    ./generate_rsa_pair $counter
+    if diff server_pubkey.pub q2b_pubkey.pub >/dev/null; then
+        cat q2b_privkey.priv
+	break
+    fi
+    let counter=counter+1
+done
+
+
+#i = 0
+#function travel_through_time {
+ #   while i!= 0
+#
+#
+#}
+
+#cat server_key
+
+
