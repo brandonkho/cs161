@@ -1,0 +1,15 @@
+First Approach:
+
+For this approach we create a private key using openssl genrsa. Then we create a request for the certificate using openssl req and the private key we generated earlier. The budget cert site only creates certificates for neocal.info sites so we use "data.gov-of-caltopia.info/stuff/neocal.info". We use the slash to trick the verifier into thinking that the csr is from data.gov-of-caltopia.info. Then we use the budgetcertz site to create our certificate and then we install it using sslsniff_install_cert. We can change the http_request by using the manipulate function in rewriter.py by changing the emergency_kill to kill and decrementing the content length. Then when we run sslsniff, the emergency kill will be activated and the 4th wall will be broken. 
+
+Second approach:
+
+For this approach we generate the private key and certificate request the same way. Then we can create a cn.dat file that contains a null terminator after "data.gov-of-caltopia.info" because the client_fragment file will stop looking after the null terminator. This creates a request with the common name that we want. Then we can create the certificate and follow the same steps as the first method.
+
+
+gov-of-caltopia.info can't really protect against the attack because it didn't have any vulnerabilities itself. 
+
+Governor Stalloon can use different software to verify the requests. It vulnerability was in the way it checked requests because it could get tricked either by a slash or a null character. 
+
+The site should sanitize inputs to prevent any vulnerabilities from being exploited. It should have a whilelist where common names need to be alphanumeric or have dashes. This way the vulnerabilty cannot be exploited with special characters. 
+
